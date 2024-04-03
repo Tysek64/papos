@@ -17,11 +17,14 @@ start:
  ; mov ax, 0x4141
  ; mov [fs:bx], ax
 
+ cli
  lgdt [GDT_addr]
  
  mov eax, cr0 ; standardowa praktyka - czesto na flagach operacji nie wykonujemy, zamiast tego dajemy je do rejestru i wtedy
- or eax, 1
+ or eax, 0x1
  mov cr0, eax
+ mov ax, DATA_SEG
+ mov ds, ax
 
  jmp dword 0x8:(0x20000+start32) ; dopoki tego skoku nie ma to bedziemy pracowac w 16 bitach, cache z 16 bitowym kodem sie kasuje
  ; 0x8 to adres CS w naszym GDT - jeden segment ma 32 bity na informacje i 32 na segment limit - razem 64/8 = 8 bajtow
@@ -34,7 +37,7 @@ start32:
  mov ss, ax
  ; czyscimy rejestry, jezeli tego nie zrobimy to niektore instrukcje korzystajace z tych rejestrow nie beda dzialac
  lea eax, [0xb8000]
- mov dword [eax], 0x4141414
+ mov dword [eax], 0x81414141
 
 jmp $
 
@@ -47,20 +50,28 @@ GDT_addr:
 ; GLOBAL DESCRIPTOR TABLE, 32-bit
 GDT:
 
-dd 0, 0 ; null segment
+ GDT_null:
+  dq 0
 ; tu bedziemy robili segment descriptor - co tam sie daje to manual intela (stream #2), dla kernela or 0 - nic nie dajemy
 
 ; CS
-dd 0xffff ; segment limit
-dd (10 << 8) | (1 << 12) | (1 << 15) | (0xf << 16) | (1 << 22) | (1 << 23)
+ GDT_code:
+  dw 0xffff ; segment limit
+  dw 0
+  
+  dd (10 << 8) | (1 << 12) | (1 << 15) | (0xf << 16) | (1 << 22) | (1 << 23)
 
 ; DS
-dd 0xffff ; segment limit
-dd (2 << 8) | (2 << 8) | (1 << 15) | (0xf << 16) | (1 << 22) | (1 << 23)
+ GDT_data:
+  dw 0xffff
+  dw 0
 
-dd 0, 0 ; null segment
+  dd (2 << 8) | (1 << 12) | (1 << 15) | (0xf << 16) | (1 << 22) | (1 << 23)
 
 GDT_end:
+
+CODE_SEG equ GDT_code - GDT
+DATA_SEG equ GDT_data - GDT
 
 times 1337 db 0x41
 
