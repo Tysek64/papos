@@ -17,6 +17,10 @@ start:
  ; mov ax, 0x4141
  ; mov [fs:bx], ax
 
+ mov al, 0x13 
+ mov ah, 0
+ int 16
+
  cli
  lgdt [GDT_addr]
  
@@ -36,8 +40,7 @@ start32:
  mov es, ax
  mov ss, ax
  ; czyscimy rejestry, jezeli tego nie zrobimy to niektore instrukcje korzystajace z tych rejestrow nie beda dzialac
- lea eax, [0xb8000]
- mov dword [eax], 0x81414141
+ call papos
 
 jmp $
 
@@ -72,6 +75,20 @@ GDT_end:
 
 CODE_SEG equ GDT_code - GDT
 DATA_SEG equ GDT_data - GDT
+
+papos:
+ mov cx, 64000
+ mov edi, 0x0A0000
+ mov al, 0
+paint:
+ mov [edi], al
+ inc al
+ dec cx
+ inc edi
+ jcxz end
+ jmp paint
+end:
+ jmp $
 
 times 1337 db 0x41
 
