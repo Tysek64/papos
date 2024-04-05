@@ -31,8 +31,34 @@ start32:
  mov es, ax
  mov ss, ax
  ; ustawia rejestry na DS, jezeli tego nie zrobimy to niektore instrukcje korzystajace z tych rejestrow nie beda dzialac
- lea eax, [0xb8000]
- mov dword [eax], 0x4141413
+ ;lea eax, [0xb8000]
+ ;mov dword [eax], 0x4141413
+ 
+ mov eax, (PML4 - $$) + 0x20000
+ mov cr3, eax
+
+ mov eax, cr4
+ or eax, 1 << 5
+ mov cr4, eax
+
+ mov ecx, 0xc0000080 ; EFER - musimy to ustawic do long mode
+ rdmsr ; wczytuje do eax wartosc z ecx
+ or eax, 1 << 8 ; enable IA-32e - tryb 64-bitowy, emuluje 32-bitowy 
+ wrmsr 
+
+ ; za;aczamy paging
+ mov eax, cr0
+ or eax, 1 << 31
+ mov cr0, eax
+ 
+ lgdt [GDT64_addr + 0x20000]
+ jmp dword 0x8:(0x20000+start64)
+
+start64:
+ [bits 64]
+ mov rax, 0xb8000
+ mov rdx, 0x4141414141414141
+ mov [rax], rdx
  jmp $
 
 GDT_addr:
@@ -57,5 +83,36 @@ dd (2 << 8) | (1 << 12) | (1 << 15) | (0xf << 16) | (1 << 22) | (1 << 23)
 
 GDT_end:
 
-times 1337 db 0x41
+; GDT 64-bit
+GDT64_addr:
+dw (GDT_end - GDT) - 1 ; zakladamy, ze GDT ma rozmiar 2^n - tak otrzymamy maske 111...111
+dd 0x20000 + GDT
+
+times (32 - ($-$$) % 32) db 0xcc
+GDT64:
+
+dd 0, 0
+; tu bedziemy robili segment descriptor - co tam sie daje to manual intela (stream #2), dla kernela or 0 - nic nie dajemy
+; subtelne roznice dla 64b - musimy ogarnac bity L i D/B, poza tym to samo (stream #3)
+; CS
+dd 0xffff ; segment limit
+dd (10 << 8) | (1 << 12) | (1 << 15) | (0xf << 16) | (1 << 21) | (1 << 23)
+
+; DS
+dd 0xffff ; segment limit
+dd (2 << 8) | (1 << 12) | (1 << 15) | (0xf << 16) | (1 << 21) | (1 << 23)
+
+
+GDT64_end:
+
+times (4096 - ($-$$) % 4096) db 0 
+; to potrzebne do stronnicowania, defacto tych $$ mogloby nie byc bo $$ to origin
+PML4:
+dq 3 | (PDPTE - $$ + 0x20000)
+times 511 dq 0 
+
+; page directory pointer
+PDPTE:
+dq 3 | (1 << 7)
+times 511 dq 0 
 
