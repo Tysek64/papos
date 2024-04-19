@@ -26,7 +26,7 @@ start:
  
 start32:
  [bits 32]
- mov ax, 0x10
+ mov ax, 0x10 ; GDT_idx
  mov ds, ax
  mov es, ax
  mov ss, ax
@@ -56,10 +56,54 @@ start32:
 
 start64:
  [bits 64]
- mov rax, 0xb8000
- mov rdx, 0x4141414141414141
- mov [rax], rdx
- jmp $
+ ;sprawdzic czy to jest ok
+ mov ax, 0x10 ; GDT_idx
+ mov ds, ax
+ mov es, ax
+ mov ss, ax
+ ;loading kernel
+ ;0x20 bo to program table offset w naglowku elf - w tym jest nasz skompilowany plik w c
+loader:
+ ; lea - laduje konkretna komorke - forma segment:offset, tutaj adres fizyczny
+ lea rsi, [0x20000 + kernel + 0x20] ; ph offset w file headerze
+ add rsi, 0x20000 + kernel ; ustawiamy ph wartosc phoff na rzeczywisty adres kernela. Offset od poczatku pliku a origin niestety w 0x00000 :)
+ ; mov zero extended word - dwa bajty
+ movzx ecx, word [0x20000 + kernel + 0x38] ; ilosc headerow od elfa, jak jest load to ladujemy
+ 
+ cld ; flaga procesora - mowi czy rep movsb ma kopiowac w gore czy w dol, chcemy w gore 
+ ; kropka - etykieta lokalna - nie piszemy wtedy loader.phloop
+ .ph_loop:
+ mov eax, [rsi+0] ; czemu +0?
+
+ cmp eax, 1 ; chcemy p-type w program headerze elfa byl rowny pt_load, wtedy chcemy zaladowac binarke w pamiec  
+ jne .next
+
+ ; ladowanie headera by go przekopiowac 
+ mov r8d, [rsi+8] ; offset, vaddr, filesz
+ mov r9d, [rsi+0x10] ; vadress ale w sumie narazie rowny pamieci fizycznej, tam kopiujemy dane
+ mov r10d, [rsi+0x20] ; po reboocie moze sie okazac ze tu cos bedzie, musimy to wyczyscic jak nie bedzie dzialac  
+ 
+ mov rbp, rsi ; zamiast dawac na stos dajemy do rejestru, szybsze, stosu i tak nie uzywamy duzo, rejestru tego tez nie
+ mov r15, rcx ; nie obciazamy tak cache procesora robiac stos. Oczywiscie robimy tak dlatego, ze rcx uzywamy w loopie jako licznik a rsi to byl ph offset
+
+ lea rsi, [0x20000 + kernel + r8d]
+ mov rdi, r9
+ mov rcx, r10 
+ rep movsb ; kopia danych, kopiujemy binarke
+
+ mov rsi, rbp
+ mov rcx, r15
+ .next:
+ add rsi, 0x20 ; pomijamy header
+ loop .ph_loop
+ 
+ mov rsp, 0x30f000 ; ustawiamy stos pod tym adresem
+ mov rax, [0x20000 + kernel + 0x18] ; ustawiamy na na entry point (witamy w c) 
+ 
+ ; mov rax, 0xb8000
+ ; mov rdx, 0x4141414141414141
+ ; mov [rax], rdx
+call rax
 
 GDT_addr:
 dw (GDT_end - GDT) - 1 ; zakladamy, ze GDT ma rozmiar 2^n - tak otrzymamy maske 111...111
@@ -115,4 +159,10 @@ times 511 dq 0
 PDPTE:
 dq 3 | (1 << 7)
 times 511 dq 0 
+
+
+
+times (512 - ($-$$) % 512) db 0 
+; kernel ma adres 0x23200h
+kernel:
 

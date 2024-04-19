@@ -3,12 +3,14 @@ import os
 
 def fix_stage1_size():
     stage2_size = os.stat("stage2").st_size
-    stage2_size = (int)((stage2_size+511)/512)
+    kernel_size = os.stat("kernel64").st_size
+
+    stage2_size = (int)((stage2_size+kernel_size+511)/512)
 
     if stage2_size >= 255:
-        print("stage2 size: ")
-        print(stage2_size)
-        raise Exception("\nstage2 is too large")
+        print("stage2 & kernel size: ")
+        print(stage2_size+kernel_size)
+        raise Exception("\nstage2 & kernel size are too large")
 
     with open("stage1", "rb+") as f:
         d = f.read() #maly plik wiec mozna
@@ -18,8 +20,12 @@ def fix_stage1_size():
         f.seek(0)
         f.write(d) #na dysku zapisywany jest i tak caly plik mniejszy niz 512 bajtow - a system i tak nie moze zmienic pojedynczego bajtu, tylko sektor - i tak nadpisuje caly plik.
 
-cmds = ["nasm stage1.asm", "nasm stage2.asm", fix_stage1_size]
-files_to_img = ["stage1", "stage2"]
+cmds = ["gcc kernel.c -nostdlib -o kernel64", 
+        "strip kernel64", 
+        "nasm stage1.asm", 
+        "nasm stage2.asm", 
+        fix_stage1_size]
+files_to_img = ["stage1", "stage2", "kernel64"] #tu kernel jest doklejany za stage2
 
 for cmd in cmds:
     if type(cmd) is str:
