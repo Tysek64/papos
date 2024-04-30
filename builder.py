@@ -20,7 +20,7 @@ def fix_stage1_size():
         f.seek(0)
         f.write(d) #na dysku zapisywany jest i tak caly plik mniejszy niz 512 bajtow - a system i tak nie moze zmienic pojedynczego bajtu, tylko sektor - i tak nadpisuje caly plik.
 
-cmds = ["gcc kernel.c -nostdlib -o kernel64", 
+cmds = ["gcc kernel.c -std=c99 -nostdlib -o kernel64", 
         "strip kernel64", 
         "nasm stage1.asm", 
         "nasm stage2.asm", 
